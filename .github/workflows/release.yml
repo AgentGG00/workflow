@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  workflow_call:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git-Cliff installieren
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Aktuelle Version ermitteln
+        id: current_version
+        run: |
+          LATEST=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          if [ -z "$LATEST" ]; then
+            echo "version=none" >> $GITHUB_OUTPUT
+          else
+            echo "version=$LATEST" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Nächste Version berechnen
+        id: next_version
+        run: |
+          if [ "${{ steps.current_version.outputs.version }}" = "none" ]; then
+            echo "version=v0.0.1" >> $GITHUB_OUTPUT
+          else
+            NEXT=$(git cliff --bumped-version)
+            echo "version=$NEXT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Changelog generieren
+        run: |
+          VERSION=${{ steps.next_version.outputs.version }}
+          mkdir -p Changelog
+          git cliff --tag "$VERSION" --unreleased --output "Changelog/${VERSION}.md"
+
+      - name: Git konfigurieren
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag setzen und Changelog committen
+        run: |
+          VERSION=${{ steps.next_version.outputs.version }}
+          git add Changelog/
+          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git tag "$VERSION"
+          git push origin main --tags
+
+      - name: GitHub Release erstellen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.next_version.outputs.version }}
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file "Changelog/${VERSION}.md"
