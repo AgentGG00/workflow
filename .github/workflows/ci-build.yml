@@ -1,0 +1,60 @@
+name: CD Deploy
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        required: true
+        type: string
+      bootstrap:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      host:
+        required: true
+      user:
+        required: true
+      ssh_key:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bootstrap – Verzeichnis und Dateien anlegen
+        if: ${{ inputs.bootstrap == true }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.host }}
+          username: ${{ secrets.user }}
+          key: ${{ secrets.ssh_key }}
+          source: "docker-compose.yml,.env.example"
+          target: "/opt/${{ inputs.project_name }}/"
+          strip_components: 0
+
+      - name: Bootstrap – .env aus .env.example anlegen
+        if: ${{ inputs.bootstrap == true }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.host }}
+          username: ${{ secrets.user }}
+          key: ${{ secrets.ssh_key }}
+          script: |
+            cd /opt/${{ inputs.project_name }}
+            mv .env.example .env
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.host }}
+          username: ${{ secrets.user }}
+          key: ${{ secrets.ssh_key }}
+          script: |
+            cd /opt/${{ inputs.project_name }}
+            docker compose pull
+            docker compose up -d
