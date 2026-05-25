@@ -1,0 +1,55 @@
+name: Create Issue
+
+on:
+  workflow_call:
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Neue Issues aus Diff ermitteln und anlegen
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            const diff = execSync('git diff HEAD~1 HEAD -- docs/issues.md').toString();
+
+            const addedLines = diff
+              .split('\n')
+              .filter(line => line.startsWith('+') && !line.startsWith('+++'))
+              .map(line => line.substring(1));
+
+            const blocks = [];
+            let current = null;
+
+            for (const line of addedLines) {
+              if (line.startsWith('## ')) {
+                if (current) blocks.push(current);
+                current = { title: line.replace('## ', '').trim(), labels: [], body: '' };
+              } else if (current && line.startsWith('labels:')) {
+                current.labels = line.replace('labels:', '').trim().split(',').map(l => l.trim());
+              } else if (current && line.startsWith('body:')) {
+                current.body = line.replace('body:', '').trim();
+              }
+            }
+            if (current) blocks.push(current);
+
+            for (const issue of blocks) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issue.title,
+                body: issue.body,
+                labels: issue.labels
+              });
+              console.log(`Issue angelegt: ${issue.title}`);
+            }
