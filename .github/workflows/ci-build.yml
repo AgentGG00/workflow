@@ -1,60 +1,76 @@
-name: CD Deploy
+name: CI Build
 
 on:
   workflow_call:
-    inputs:
-      project_name:
-        required: true
-        type: string
-      bootstrap:
-        required: false
-        type: boolean
-        default: false
-    secrets:
-      host:
-        required: true
-      user:
-        required: true
-      ssh_key:
-        required: true
 
 jobs:
-  deploy:
+  detect-stack:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.detect.outputs.python }}
+      node: ${{ steps.detect.outputs.node }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stack erkennen
+        id: detect
+        run: |
+          if [ -f "requirements.txt" ]; then
+            echo "python=true" >> $GITHUB_OUTPUT
+          else
+            echo "python=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -f "package.json" ]; then
+            echo "node=true" >> $GITHUB_OUTPUT
+          else
+            echo "node=false" >> $GITHUB_OUTPUT
+          fi
+
+  python:
+    needs: detect-stack
+    if: needs.detect-stack.outputs.python == 'true'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Bootstrap – Verzeichnis und Dateien anlegen
-        if: ${{ inputs.bootstrap == true }}
-        uses: appleboy/scp-action@v0.1.7
+      - name: Python einrichten
+        uses: actions/setup-python@v5
         with:
-          host: ${{ secrets.host }}
-          username: ${{ secrets.user }}
-          key: ${{ secrets.ssh_key }}
-          source: "docker-compose.yml,.env.example"
-          target: "/opt/${{ inputs.project_name }}/"
-          strip_components: 0
+          python-version: "3.12"
 
-      - name: Bootstrap – .env aus .env.example anlegen
-        if: ${{ inputs.bootstrap == true }}
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.host }}
-          username: ${{ secrets.user }}
-          key: ${{ secrets.ssh_key }}
-          script: |
-            cd /opt/${{ inputs.project_name }}
-            mv .env.example .env
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements.txt
 
-      - name: Deploy
-        uses: appleboy/ssh-action@v1
+      - name: Linting
+        run: |
+          pip install ruff
+          ruff check .
+
+  node:
+    needs: detect-stack
+    if: needs.detect-stack.outputs.node == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.host }}
-          username: ${{ secrets.user }}
-          key: ${{ secrets.ssh_key }}
-          script: |
-            cd /opt/${{ inputs.project_name }}
-            docker compose pull
-            docker compose up -d
+          node-version: "20"
+          cache: "npm"
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Linting
+        run: npm run lint --if-present
+
+      - name: Build
+        run: npm run build --if-present
