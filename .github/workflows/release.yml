@@ -26,7 +26,7 @@ jobs:
         run: |
           LATEST=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           if [ -z "$LATEST" ]; then
-            echo "version=none" >> $GITHUB_OUTPUT
+            echo "version=v0.0.0" >> $GITHUB_OUTPUT
           else
             echo "version=$LATEST" >> $GITHUB_OUTPUT
           fi
@@ -34,8 +34,22 @@ jobs:
       - name: Nächste Version berechnen
         id: next_version
         run: |
-          NEXT=$(git cliff --bumped-version 2>/dev/null || echo "v0.1.0")
-          echo "version=$NEXT" >> $GITHUB_OUTPUT
+          CURRENT=${{ steps.current_version.outputs.version }}
+          MAJOR=$(echo $CURRENT | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo $CURRENT | cut -d. -f2)
+          PATCH=$(echo $CURRENT | cut -d. -f3)
+
+          COMMITS=$(git log ${CURRENT}..HEAD --pretty=format:"%s")
+
+          if echo "$COMMITS" | grep -qE '^.+!'; then
+            MAJOR=$((MAJOR + 1))
+          elif echo "$COMMITS" | grep -qE '^feat'; then
+            MINOR=$((MINOR + 1))
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          echo "version=v${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
 
       - name: Changelog generieren
         run: |
