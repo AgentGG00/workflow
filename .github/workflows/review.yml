@@ -70,14 +70,11 @@ jobs:
           wget -qO- https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz
           sudo mv gitleaks /usr/local/bin/
 
-      - name: Secrets scannen
-        run: gitleaks detect --source . --no-git
-
-      - name: Ergebnis speichern
+      - name: Secrets scannen und Ergebnis speichern
         if: always()
         run: |
           mkdir -p review-result
-          if [ "${{ job.status }}" = "success" ]; then
+          if gitleaks detect --source . --no-git --exit-code 0 2>/dev/null; then
             echo "success" > review-result/secrets.txt
           else
             echo "failure" > review-result/secrets.txt
