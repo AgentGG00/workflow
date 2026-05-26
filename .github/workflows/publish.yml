@@ -25,6 +25,9 @@ jobs:
           repository: ${{ inputs.repository != '' && inputs.repository || github.repository }}
           ref: main
 
+      - name: Debug Context
+        run: ls -la && ls -la config/ || echo "config/ nicht gefunden"
+
       - name: Repository lowercase
         id: repo
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
