@@ -17,6 +17,8 @@ on:
         required: true
       ssh_key:
         required: true
+      env_content:
+        required: false
 
 jobs:
   deploy:
@@ -33,11 +35,11 @@ jobs:
           host: ${{ secrets.host }}
           username: ${{ secrets.user }}
           key: ${{ secrets.ssh_key }}
-          source: "docker-compose.yml,.env.example"
+          source: "docker-compose.yml"
           target: "/opt/${{ inputs.project_name }}/"
           strip_components: 0
 
-      - name: Bootstrap – .env aus .env.example anlegen
+      - name: Bootstrap – .env schreiben
         if: ${{ inputs.bootstrap == true }}
         uses: appleboy/ssh-action@v1
         with:
@@ -45,8 +47,9 @@ jobs:
           username: ${{ secrets.user }}
           key: ${{ secrets.ssh_key }}
           script: |
-            cd /opt/${{ inputs.project_name }}
-            mv .env.example .env
+            cat > /opt/${{ inputs.project_name }}/.env << 'ENVEOF'
+            ${{ secrets.env_content }}
+            ENVEOF
 
       - name: Deploy
         uses: appleboy/ssh-action@v1
