@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
 
       - name: Git-Cliff installieren
         uses: taiki-e/install-action@v2
@@ -56,13 +56,15 @@ jobs:
         run: |
           VERSION=${{ steps.next_version.outputs.version }}
           git add Changelog/
-          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git commit -m "init(release): ${VERSION} [skip ci]"
           git tag "$VERSION"
           git push origin main --tags
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
 
       - name: GitHub Release erstellen
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT }}
         run: |
           VERSION=${{ steps.next_version.outputs.version }}
           gh release create "$VERSION" \
