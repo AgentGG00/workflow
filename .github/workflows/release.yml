@@ -34,12 +34,8 @@ jobs:
       - name: Nächste Version berechnen
         id: next_version
         run: |
-          if [ "${{ steps.current_version.outputs.version }}" = "none" ]; then
-            echo "version=v0.0.1" >> $GITHUB_OUTPUT
-          else
-            NEXT=$(git cliff --bumped-version)
-            echo "version=$NEXT" >> $GITHUB_OUTPUT
-          fi
+          NEXT=$(git cliff --bumped-version 2>/dev/null || echo "v0.1.0")
+          echo "version=$NEXT" >> $GITHUB_OUTPUT
 
       - name: Changelog generieren
         run: |
